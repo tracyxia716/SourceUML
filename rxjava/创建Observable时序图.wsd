@@ -1,0 +1,10 @@
+@startuml 创建Observable时序图
+
+
+actor user
+
+
+user -> Observable : 1.create
+Observable -> RxJavaPlugins : 2.onAssembly
+RxJavaPlugins -> user : 3.ObservableCreate
+@enduml

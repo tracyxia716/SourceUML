@@ -1,0 +1,23 @@
+@startuml Observable订阅时序图
+
+
+actor user
+
+
+
+user -> ObservableCreate : 1.subscribe
+ObservableCreate ->  RxJavaPlugins : 2.onSubscribe
+ObservableCreate -> ObservableCreate : 3.subscribeActual
+
+create CreateEmitter
+ObservableCreate -> CreateEmitter : 4.new
+ObservableCreate -> Observer : 5.onSubscribe
+ObservableCreate -> ObservableOnSubscribe : 6.subscribe
+
+
+
+
+' user -> Observable : create
+' Observable -> RxJavaPlugins : onAssembly
+' RxJavaPlugins -> user : ObservableCreate
+@enduml

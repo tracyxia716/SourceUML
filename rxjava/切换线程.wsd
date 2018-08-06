@@ -1,0 +1,26 @@
+@startuml 切换线程
+actor user
+
+user->Schedulers : 1.io()
+Schedulers->RxJavaPlugins : 2.onIoScheduler(Scheduler)
+RxJavaPlugins->RxJavaPlugins : 3.apply(Function<T,R>,T)
+RxJavaPlugins->user : 4.返回Scheduler对象
+
+user->Observable : 5.subscribeOn(Scheduler)
+
+create ObservableSubscribeOn
+Observable -> ObservableSubscribeOn:6.new
+
+Observable->RxJavaPlugins : 7.onAssembly(Observable)
+note right : 实际传递的是ObservableSubscribeOn对象
+
+RxJavaPlugins->user : 8.返回Observable
+
+
+
+' user->ObservableCreate : 1.subscribeOn()
+' create ObservableSubscribeOn
+' ObservableCreate -> ObservableSubscribeOn : 2.new
+' ObservableCreate->RxJavaPlugins : 3.onAssembly
+' RxJavaPlugins -> user : 4.ObservableSubscribeOn
+@enduml

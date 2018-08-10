@@ -1,54 +1,80 @@
 @startuml 切换线程
 actor user
 
-user->Schedulers : 1.io()
-Schedulers->RxJavaPlugins : 2.onIoScheduler(Scheduler)
-RxJavaPlugins->RxJavaPlugins : 3.apply(Function<T,R>,T)
-RxJavaPlugins->user : 4.返回Scheduler对象
+user->Schedulers : io()
+Schedulers->RxJavaPlugins : onIoScheduler(Scheduler)
+RxJavaPlugins->RxJavaPlugins :apply(Function<T,R>,T)
+RxJavaPlugins-->user : 返回Scheduler对象
 
-user->Observable : 5.subscribeOn(Scheduler)
+user->Observable : subscribeOn(Scheduler)
 create ObservableSubscribeOn
-Observable -> ObservableSubscribeOn:6.new
-Observable->RxJavaPlugins : 7.onAssembly(Observable)
+Observable -> ObservableSubscribeOn: new
+Observable->RxJavaPlugins : onAssembly(Observable)
 note right : 实际传递的是ObservableSubscribeOn对象
-RxJavaPlugins->user : 8.返回Observable
+RxJavaPlugins-->user : 返回Observable
 
 
-user->Schedulers : 9.newThread
-Schedulers->RxJavaPlugins : 10.onNewThreadScheduler(Scheduler)
-RxJavaPlugins->RxJavaPlugins : 11.apply(Function<T,R>,T)
-RxJavaPlugins->user : 12.返回Scheduler对象
+user->Schedulers : newThread
+Schedulers->RxJavaPlugins : onNewThreadScheduler(Scheduler)
+RxJavaPlugins->RxJavaPlugins : apply(Function<T,R>,T)
+RxJavaPlugins-->user : 返回Scheduler对象
 
 
 
-user->Observable : 13.observeOn(Scheduler)
-Observable->Observable : 14.observeOn(Scheduler,boolean,int)
+user->Observable : observeOn(Scheduler)
+Observable->Observable : observeOn(Scheduler,boolean,int)
 note right : 这里第二参数传递的false，第三个参数传递的是Flowable.bufferSize()
 create ObservableObserveOn
-Observable->ObservableObserveOn:15.创建OservableObser
-Oservable->RxJavaPlugins:16.onAssembly(Observable)
-RxJavaPlugins->user:17.返回ObservableSubscribeOn对象
+Observable->ObservableObserveOn : 创建OservableObser
+Oservable->RxJavaPlugins : onAssembly(Observable)
+RxJavaPlugins-->user : 返回ObservableSubscribeOn对象
 
 
-user->Observable : 18.subscribe
-Observable ->  RxJavaPlugins : 19.onSubscribe(Observable,Observer)
-Observable -> ObservableObserveOn : 20.subscribeActual
-ObservableObserveOn -> Scheduler : 21.createWorker()
+user->Observable : subscribe
+Observable ->  RxJavaPlugins : onSubscribe(Observable,Observer)
+Observable -> ObservableObserveOn : subscribeActual
+ObservableObserveOn -> Scheduler : createWorker()
 create NewThreadWorker
-NewThreadScheduler -> NewThreadWorker : 22.new
-NewThreadScheduler -> ObservableObserveOn : 23.返回NewThreadWorker
+NewThreadScheduler -> NewThreadWorker : new
+NewThreadScheduler --> ObservableObserveOn : 返回NewThreadWorker
 
 create ObserveOnObserver
-ObservableObserveOn -> ObserveOnObserver : 24.new(Observer, Scheduler.Worker, boolean, int)
-ObservableObserveOn -> Observable : 24.subscribe(Observer)
-Observable -> RxJavaPlugins : 25.onSubscribe(Observable,Observer)
-RxJavaPlugins->Observable : 26.返回ObservableObserveOn
-Observable->ObservableSubscribeOn: 27.subscribeActual(Observer)
+ObservableObserveOn -> ObserveOnObserver : new(Observer, Scheduler.Worker, boolean, int)
+ObservableObserveOn -> Observable : subscribe(Observer)
+Observable -> RxJavaPlugins : onSubscribe(Observable,Observer)
+RxJavaPlugins --> Observable : 返回ObservableObserveOn
+Observable->ObservableSubscribeOn: subscribeActual(Observer)
 note right : Observer对象实际上传递的是返回来的返回ObservableObserveOn
 create SubscribeOnObserver
-ObservableSubscribeOn -> SubscribeOnObserver : 28.new(Observer)
-ObservableSubscribeOn -> ObservableObserveOn : 29.onSubscribe(Disposable)
-note right : 实际上传递的是刚刚new出来的SubscribeOnObserver
+ObservableSubscribeOn -> SubscribeOnObserver : new(Observer)
+ObservableSubscribeOn -> ObservableObserveOn : onSubscribe(Disposable)
+note right : 实际上传递的是刚刚new出来的SubscribeOnObserver,
+ObservableObserveOn -> Observer : onSubscribe
+create SubscribeTask
+note right: 实际上就是一个实现了Runnable的类
+ObservableSubscribeOn -> SubscribeTask : 创建SubscribeTask，传递进去SubscribeOnObserver对象
+ObservableSubscribeOn -> Scheduler : scheduleDirect(Runnable)
+note right : Scheduler是抽象类，实际上调用的IOScheduler对象
+Scheduler -> Scheduler : scheduleDirect(Runnable,long,TimeUnit)
+Scheduler -> IoScheduler : CreateWorker
+IoScheduler --> Scheduler : 返回EventLoopWorker
+Scheduler -> RxJavaPlugins : onSchedule(Runnable)
+RxJavaPlugins --> Scheduler : 返回Runnable
+create DisposeTask
+Scheduler -> DisposeTask : new(Runnable, Worker)
+Scheduler -> EventLoopWorker : schedule(Runnable, long ,TimeUnit)
+EventLoopWorker -> NewThreadWorker : scheduleActual(Runnable, long,TimeUnit,DisposableContainer)
+NewThreadWorker -> RxJavaPlugins : onSchedule(Runnable)
+RxJavaPlugins --> NewThreadWorker : 返回Runnable
+create ScheduledRunnable
+NewThreadScheduler -> ScheduledRunnable
+ScheduledRunnable --> NewThreadWorker:返回ScheduledRunnable对象
+NewThreadWorker -->> ScheduledThreadPoolExecutor : 异步调用submit
+
+
+
+
+
 
 
 

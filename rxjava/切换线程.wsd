@@ -1,92 +1,73 @@
 @startuml 切换线程
 actor user
 
-user->Schedulers : io()
-Schedulers->RxJavaPlugins : onIoScheduler(Scheduler)
-RxJavaPlugins->RxJavaPlugins :apply(Function<T,R>,T)
-RxJavaPlugins-->user : 返回Scheduler对象
 
-user->Observable : subscribeOn(Scheduler)
+user->Schedulers : io
+Schedulers->Schedulers : init
+
+note right : 调用Schedulers.io()的方法出发了static代码块的初始化逻辑
+create IOTask
+Schedulers -> IOTask : new()
+note left:IOTask实现了Callable通过call方法可返回IoScheduler对象
+IOTask --> Schedulers : 返回IOTask对象
+Schedulers -> RxJavaPlugins : initIoScheduler(Callable<Scheduler>)
+RxJavaPlugins --> Schedulers : 返回IoScheduler对象
+note right : 直接将IOTask对象传入并通过call方法返回IoScheduler对象
+
+create NewThreadTask
+Schedulers -> NewThreadTask : new
+note left:NewThreadTask与IOTask同理
+NewThreadTask-->Schedulers : 返回NewThreadTask对象
+Schedulers -> RxJavaPlugins : initNewThreadScheduler(Callable<Scheduler>)
+RxJavaPlugins --> Schedulers : 返回NewThreadScheduler对象
+note right : 直接将NewThreadTask对象传入并通过call方法返回NewThreadScheduler对象
+
+
+Schedulers->RxJavaPlugins:onIoScheduler(Scheduler)
+RxJavaPlugins--->Schedulers : 返回IoScheduler对象
+Schedulers --> user : 返回IoScheduler对象
+== 1.创建IoScheduler阶段 ==
+user -> ObservableCreate : subscribeOn(Scheduler)
 create ObservableSubscribeOn
-Observable -> ObservableSubscribeOn: new
-Observable->RxJavaPlugins : onAssembly(Observable)
-note right : 实际传递的是ObservableSubscribeOn对象
-RxJavaPlugins-->user : 返回Observable
-
-
-user->Schedulers : newThread
-Schedulers->RxJavaPlugins : onNewThreadScheduler(Scheduler)
-RxJavaPlugins->RxJavaPlugins : apply(Function<T,R>,T)
-RxJavaPlugins-->user : 返回Scheduler对象
-
-
-
-user->Observable : observeOn(Scheduler)
-Observable->Observable : observeOn(Scheduler,boolean,int)
-note right : 这里第二参数传递的false，第三个参数传递的是Flowable.bufferSize()
+ObservableCreate -> ObservableSubscribeOn:new(ObservableSource<T>, Scheduler)
+note left:第一个传递的当前的ObservableCreate对象，第二个传递的是IoScheduler
+ObservableSubscribeOn-->ObservableCreate:返回ObservableSubscribeOn对象
+ObservableCreate->RxJavaPlugins : onAssembly(Observable<T>)
+RxJavaPlugins-->ObservableCreate:返回ObservableSubscribeOn对象
+ObservableCreate-->user:返回ObservableSubscribeOn对象
+== 2.调用subscribeOn阶段 ==
+user -> Schedulers : newThread()
+Schedulers -> RxJavaPlugins : onNewThreadScheduler(Scheduler)
+RxJavaPlugins --> Schedulers : 返回NewThreadScheduler对象
+Scheduler --> user : 返回NewThreadScheduler对象
+== 3.创建NewThreadScheduler阶段 ==
+user->ObservableSubscribeOn : observeOn(Scheduler)
+ObservableSubscribeOn->ObservableSubscribeOn:observeOn(Scheduler, boolean, int)
+note right: 最后一个参数传递的是Flowable.bufferSize()
 create ObservableObserveOn
-Observable->ObservableObserveOn : 创建OservableObser
-Oservable->RxJavaPlugins : onAssembly(Observable)
-RxJavaPlugins-->user : 返回ObservableSubscribeOn对象
-
-
-user->Observable : subscribe
-Observable ->  RxJavaPlugins : onSubscribe(Observable,Observer)
-Observable -> ObservableObserveOn : subscribeActual
-ObservableObserveOn -> Scheduler : createWorker()
+ObservableSubscribeOn->ObservableObserveOn:new(ObservableSource<T>, Scheduler, boolean, int)
+ObservableObserveOn-->ObservableSubscribeOn:返回ObservableObserveOn对象
+ObservableSubscribeOn->RxJavaPlugins:onAssembly(Observable)
+RxJavaPlugins-->ObservableSubscribeOn:返回ObservableObserveOn对象
+note left : 传递和返回的实际上就是ObservableObserveOn对象
+ObservableSubscribeOn-->user:返回ObservableObserveOn对象
+== 4.调用observeOn阶段 ==
+user->ObservableObserveOn:subscribe(Observer)
+ObservableObserveOn->RxJavaPlugins:onSubscribe(Observable,Observer)
+note left : 第一个参数传递的是this,第二参数传的是传进来的Observer
+RxJavaPlugins --> ObservableObserveOn:返回传递进来的Observer对象
+ObservableObserveOn->ObservableObserveOn:subscribeActual(Observer)
+ObservableObserveOn->NewThreadScheduler:createWorker()
 create NewThreadWorker
-NewThreadScheduler -> NewThreadWorker : new
-NewThreadScheduler --> ObservableObserveOn : 返回NewThreadWorker
+NewThreadScheduler->NewThreadWorker:new(ThreadFactory)
+NewThreadWorker-->NewThreadScheduler:返回NewThreadWorker对象
+NewThreadScheduler-->ObservableObserveOn:返回NewThreadWorker对象
 
 create ObserveOnObserver
-ObservableObserveOn -> ObserveOnObserver : new(Observer, Scheduler.Worker, boolean, int)
-ObservableObserveOn -> Observable : subscribe(Observer)
-Observable -> RxJavaPlugins : onSubscribe(Observable,Observer)
-RxJavaPlugins --> Observable : 返回ObservableObserveOn
-Observable->ObservableSubscribeOn: subscribeActual(Observer)
-note right : Observer对象实际上传递的是返回来的返回ObservableObserveOn
-create SubscribeOnObserver
-ObservableSubscribeOn -> SubscribeOnObserver : new(Observer)
-ObservableSubscribeOn -> ObservableObserveOn : onSubscribe(Disposable)
-note right : 实际上传递的是刚刚new出来的SubscribeOnObserver,
-ObservableObserveOn -> Observer : onSubscribe
-create SubscribeTask
-note right: 实际上就是一个实现了Runnable的类
-ObservableSubscribeOn -> SubscribeTask : 创建SubscribeTask，传递进去SubscribeOnObserver对象
-ObservableSubscribeOn -> Scheduler : scheduleDirect(Runnable)
-note right : Scheduler是抽象类，实际上调用的IOScheduler对象
-Scheduler -> Scheduler : scheduleDirect(Runnable,long,TimeUnit)
-Scheduler -> IoScheduler : CreateWorker
-IoScheduler --> Scheduler : 返回EventLoopWorker
-Scheduler -> RxJavaPlugins : onSchedule(Runnable)
-RxJavaPlugins --> Scheduler : 返回Runnable
-create DisposeTask
-Scheduler -> DisposeTask : new(Runnable, Worker)
-Scheduler -> EventLoopWorker : schedule(Runnable, long ,TimeUnit)
-EventLoopWorker -> NewThreadWorker : scheduleActual(Runnable, long,TimeUnit,DisposableContainer)
-NewThreadWorker -> RxJavaPlugins : onSchedule(Runnable)
-RxJavaPlugins --> NewThreadWorker : 返回Runnable
-create ScheduledRunnable
-NewThreadScheduler -> ScheduledRunnable
-ScheduledRunnable --> NewThreadWorker:返回ScheduledRunnable对象
-NewThreadWorker -->> ScheduledThreadPoolExecutor : 异步调用submit
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-' user->ObservableCreate : 1.subscribeOn()
-' create ObservableSubscribeOn
-' ObservableCreate -> ObservableSubscribeOn : 2.new
-' ObservableCreate->RxJavaPlugins : 3.onAssembly
-' RxJavaPlugins -> user : 4.ObservableSubscribeOn
+ObservableObserveOn->ObserveOnObserver:new(Observer<? super T>, Scheduler.Worker, boolean, int)
+ObserveOnObserver-->ObservableObserveOn:返回ObserveOnObserver对象
+ObservableObserveOn->ObservableSubscribeOn:subscribe(Observer)传递ObserveOnObserver对象
+ObservableSubscribeOn->RxJavaPlugins
+== 5.调用subscribe阶段 ==
 @enduml

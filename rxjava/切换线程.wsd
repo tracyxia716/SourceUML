@@ -76,7 +76,7 @@ note left: 传递ObserveOnObserver对象
 create SubscribeOnObserver
 ObservableSubscribeOn->SubscribeOnObserver:new(Observer)
 SubscribeOnObserver-->ObservableSubscribeOn:返回SubscribeOnObserver对象
-ObservableSubscribeOn->ObservableObserveOn:onSubscribe(Disposable)
+ObservableSubscribeOn->ObservableObserveOn:onSubscribe(Disposable d)
 note right: 传递的是SubscribeOnObserver对象
 == 5.调用subscribe阶段 ==
 @enduml

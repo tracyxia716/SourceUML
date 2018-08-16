@@ -67,7 +67,16 @@ create ObserveOnObserver
 
 ObservableObserveOn->ObserveOnObserver:new(Observer<? super T>, Scheduler.Worker, boolean, int)
 ObserveOnObserver-->ObservableObserveOn:返回ObserveOnObserver对象
-ObservableObserveOn->ObservableSubscribeOn:subscribe(Observer)传递ObserveOnObserver对象
-ObservableSubscribeOn->RxJavaPlugins
+ObservableObserveOn->ObservableSubscribeOn:subscribe(Observer)
+note left:传递ObserveOnObserver对象
+ObservableSubscribeOn->RxJavaPlugins:onSubscribe(Observable<T>,Observer<? super T>)
+RxJavaPlugins-->ObservableSubscribeOn:返回传递进来的Observer即ObservableObserveOn对象
+ObservableSubscribeOn->ObservableSubscribeOn:subscribeActual(Observer)
+note left: 传递ObserveOnObserver对象
+create SubscribeOnObserver
+ObservableSubscribeOn->SubscribeOnObserver:new(Observer)
+SubscribeOnObserver-->ObservableSubscribeOn:返回SubscribeOnObserver对象
+ObservableSubscribeOn->ObservableObserveOn:onSubscribe(Disposable)
+note right: 传递的是SubscribeOnObserver对象
 == 5.调用subscribe阶段 ==
 @enduml

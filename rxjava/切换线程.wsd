@@ -75,8 +75,44 @@ ObservableSubscribeOn->ObservableSubscribeOn:subscribeActual(Observer)
 note left: 传递ObserveOnObserver对象
 create SubscribeOnObserver
 ObservableSubscribeOn->SubscribeOnObserver:new(Observer)
-SubscribeOnObserver-->ObservableSubscribeOn:返回SubscribeOnObserver对象
-ObservableSubscribeOn->ObservableObserveOn:onSubscribe(Disposable d)
-note right: 传递的是SubscribeOnObserver对象
+
+ObservableSubscribeOn->ObserveOnObserver:onSubscribe(Disposable)
+note left:传递的刚刚创建的ObserveOnObserver对象
+create SpscLinkedArrayQueue
+ObserveOnObserver->SpscLinkedArrayQueue:new(int)
+SpscLinkedArrayQueue-->ObserveOnObserver:返回SpscLinkedArrayQueue对象
+ObserveOnObserver->Observer:onSubscribe(Disposable)
+note left:调用我们创建出来的Observer的onSubscribe方法
+create SubscribeTask
+ObservableSubscribeOn->SubscribeTask:new(SubscribeOnObserver)
+SubscribeTask-->ObservableSubscribeOn:返回SubscribeTask对象
+ObservableSubscribeOn->IoScheduler:scheduleDirect(Runnable)
+note left:传递SubscribeTask对象
+IoScheduler->IoScheduler:scheduleDirect(Runnable,long,TimeUnit)
+IoScheduler->IoScheduler:createWorker()
+IoScheduler-->IoScheduler:返回IoScheduler.EventLoopWorker对象
+IoScheduler->RxJavaPlugins:onSchedule(Runnable)
+RxJavaPlugins-->IoScheduler:返回Runnable对象
+create DisposeTask
+IoScheduler->DisposeTask:new(Runnable,Worker)
+note left:传递刚刚创建Runable和Worker对象
+DisposeTask-->IoScheduler:返回DisposeTask对象
+IoScheduler->IoScheduler.EventLoopWorker:schedule(Runnable,long,TimeUnit)
+IoScheduler.EventLoopWorker->IoScheduler.ThreadWorker:scheduleActual(Runnable,long,TimeUnit,DisposableContainer)
+IoScheduler.ThreadWorker->RxJavaPlugins:onSchedule(Runnable)
+RxJavaPlugins-->IoScheduler.ThreadWorker:返回Runnable对象
+create ScheduledRunnable
+IoScheduler.ThreadWorker->ScheduledRunnable:new(Runnable,DisposableContainer)
+ScheduledRunnable->IoScheduler.ThreadWorker:返回ScheduledRunnable对象
+IoScheduler.ThreadWorker->ScheduledExecutorService:submit(Callable<T>)
+note left:传递刚刚创建的ScheduledRunnable对象
+NewThreadWorker-->IoScheduler:返回ScheduledRunnable,实现了Disposable接口
+
+IoScheduler-->ObservableSubscribeOn:返回Disposable对象
+ObservableSubscribeOn->ObservableSubscribeOn.SubscribeOnObserver:setDisposable(Disposable)
+ObservableSubscribeOn.SubscribeOnObserver->DisposableHelper:setOnce(AtomicReference<Disposable>,Disposable)
+
+
+
 == 5.调用subscribe阶段 ==
 @enduml

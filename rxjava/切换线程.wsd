@@ -1,4 +1,5 @@
 @startuml 切换线程
+autonumber
 actor user
 
 
@@ -105,6 +106,8 @@ create ScheduledRunnable
 IoScheduler.ThreadWorker->ScheduledRunnable:new(Runnable,DisposableContainer)
 ScheduledRunnable->IoScheduler.ThreadWorker:返回ScheduledRunnable对象
 IoScheduler.ThreadWorker->ScheduledExecutorService:submit(Callable<T>)
+ScheduledExecutorService-->ScheduledRunnable:异步执行run方法
+
 note left:传递刚刚创建的ScheduledRunnable对象
 NewThreadWorker-->IoScheduler:返回ScheduledRunnable,实现了Disposable接口
 
